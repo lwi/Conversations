@@ -152,6 +152,7 @@ public class XmppConnectionService extends Service {
 					message = MessageParser.parseCarbonMessage(packet, account,
 							service);
 					if (message != null) {
+						if (message.getBody().startsWith("?OTR")) return;
 						if (message.getStatus() == Message.STATUS_SEND) {
 							lastCarbonMessageReceived = SystemClock.elapsedRealtime();
 							notify = false;
