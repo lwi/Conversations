@@ -14,8 +14,11 @@ import android.net.Uri;
 import android.util.Log;
 import android.util.LruCache;
 
+import eu.siacs.conversations.entities.Account;
 import eu.siacs.conversations.entities.Conversation;
 import eu.siacs.conversations.entities.Message;
+import eu.siacs.conversations.services.XmppConnectionService;
+import eu.siacs.conversations.xmpp.jingle.JingleFile;
 
 public class FileBackend {
 
@@ -26,7 +29,6 @@ public class FileBackend {
 
 	public FileBackend(Context context) {
 		this.context = context;
-		
 		int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
 		int cacheSize = maxMemory / 8;
 		thumbnailCache = new LruCache<String, Bitmap>(cacheSize) {
@@ -38,15 +40,15 @@ public class FileBackend {
 
 	}
 
-	public File getImageFile(Message message) {
+	public JingleFile getJingleFile(Message message) {
 		Conversation conversation = message.getConversation();
 		String prefix = context.getFilesDir().getAbsolutePath();
 		String path = prefix + "/" + conversation.getAccount().getJid() + "/"
 				+ conversation.getContactJid();
 		String filename = message.getUuid() + ".webp";
-		return new File(path + "/" + filename);
+		return new JingleFile(path + "/" + filename);
 	}
-	
+
 	private Bitmap resize(Bitmap originalBitmap, int size) {
 		int w = originalBitmap.getWidth();
 		int h = originalBitmap.getHeight();
@@ -60,28 +62,29 @@ public class FileBackend {
 				scalledW = size;
 				scalledH = (int) (h / ((double) w / size));
 			}
-			Bitmap scalledBitmap = Bitmap.createScaledBitmap(
-					originalBitmap, scalledW, scalledH, true);
+			Bitmap scalledBitmap = Bitmap.createScaledBitmap(originalBitmap,
+					scalledW, scalledH, true);
 			return scalledBitmap;
 		} else {
 			return originalBitmap;
 		}
 	}
 
-	public File copyImageToPrivateStorage(Message message, Uri image) {
+	public JingleFile copyImageToPrivateStorage(Message message, Uri image) {
 		try {
 			InputStream is = context.getContentResolver()
 					.openInputStream(image);
-			File file = getImageFile(message);
+			JingleFile file = getJingleFile(message);
 			file.getParentFile().mkdirs();
 			file.createNewFile();
 			OutputStream os = new FileOutputStream(file);
 			Bitmap originalBitmap = BitmapFactory.decodeStream(is);
 			is.close();
 			Bitmap scalledBitmap = resize(originalBitmap, IMAGE_SIZE);
-			boolean success = scalledBitmap.compress(Bitmap.CompressFormat.WEBP,75,os);
+			boolean success = scalledBitmap.compress(
+					Bitmap.CompressFormat.WEBP, 75, os);
 			if (!success) {
-				Log.d("xmppService", "couldnt compress");
+				// Log.d("xmppService", "couldnt compress");
 			}
 			os.close();
 			return file;
@@ -97,19 +100,43 @@ public class FileBackend {
 	}
 
 	public Bitmap getImageFromMessage(Message message) {
-		return BitmapFactory
-				.decodeFile(getImageFile(message).getAbsolutePath());
+		return BitmapFactory.decodeFile(getJingleFile(message)
+				.getAbsolutePath());
 	}
 
-	public Bitmap getThumbnailFromMessage(Message message, int size) {
+	public Bitmap getThumbnailFromMessage(Message message, int size)
+			throws FileNotFoundException {
 		Bitmap thumbnail = thumbnailCache.get(message.getUuid());
-		if (thumbnail==null) {
-			Log.d("xmppService","creating new thumbnail" + message.getUuid());
-			Bitmap fullsize = BitmapFactory.decodeFile(getImageFile(message)
+		if (thumbnail == null) {
+			Bitmap fullsize = BitmapFactory.decodeFile(getJingleFile(message)
 					.getAbsolutePath());
+			if (fullsize == null) {
+				throw new FileNotFoundException();
+			}
 			thumbnail = resize(fullsize, size);
 			this.thumbnailCache.put(message.getUuid(), thumbnail);
 		}
 		return thumbnail;
+	}
+
+	public void removeFiles(Conversation conversation) {
+		String prefix = context.getFilesDir().getAbsolutePath();
+		String path = prefix + "/" + conversation.getAccount().getJid() + "/"
+				+ conversation.getContactJid();
+		File file = new File(path);
+		try {
+			this.deleteFile(file);
+		} catch (IOException e) {
+			Log.d("xmppService",
+					"error deleting file: " + file.getAbsolutePath());
+		}
+	}
+
+	private void deleteFile(File f) throws IOException {
+		if (f.isDirectory()) {
+			for (File c : f.listFiles())
+				deleteFile(c);
+		}
+		f.delete();
 	}
 }

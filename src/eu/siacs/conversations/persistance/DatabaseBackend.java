@@ -201,9 +201,17 @@ public class DatabaseBackend extends SQLiteOpenHelper {
 				+ "=?", args);
 	}
 	
-	public void updateContact(Contact contact) {
+	public void updateContact(Contact contact, boolean updatePresences) {
 		SQLiteDatabase db = this.getWritableDatabase();
 		String[] args = { contact.getUuid() };
+		ContentValues values = contact.getContentValues();
+		if (!updatePresences) {
+			values.remove(Contact.PRESENCES);
+		} else {
+			values.remove(Contact.DISPLAYNAME);
+			values.remove(Contact.PHOTOURI);
+			values.remove(Contact.SYSTEMACCOUNT);
+		}
 		db.update(Contact.TABLENAME, contact.getContentValues(), Contact.UUID
 				+ "=?", args);
 	}
@@ -227,8 +235,7 @@ public class DatabaseBackend extends SQLiteOpenHelper {
 			if (cursor.getCount()>=1) {
 				cursor.moveToFirst();
 				contact.setUuid(cursor.getString(0));
-				contact.setPresences(Presences.fromJsonString(cursor.getString(1)));
-				updateContact(contact);
+				updateContact(contact,false);
 			} else {
 				contact.setUuid(UUID.randomUUID().toString());
 				createContact(contact);
@@ -281,6 +288,12 @@ public class DatabaseBackend extends SQLiteOpenHelper {
 		String[] args = { message.getUuid() };
 		db.delete(Message.TABLENAME, Message.UUID + "=?", args);
 	}
+	
+	public void deleteMessagesInConversation(Conversation conversation) {
+		SQLiteDatabase db = this.getWritableDatabase();
+		String[] args = { conversation.getUuid() };
+		db.delete(Message.TABLENAME, Message.CONVERSATION + "=?", args);
+	}
 
 	public void deleteContact(Contact contact) {
 		SQLiteDatabase db = this.getWritableDatabase();
@@ -292,11 +305,43 @@ public class DatabaseBackend extends SQLiteOpenHelper {
 		SQLiteDatabase db = this.getWritableDatabase();
 		String[] args = { uuid };
 		Cursor cursor = db.query(Contact.TABLENAME, null, Contact.UUID + "=?", args, null, null, null);
-		if (cursor.getCount() == 0)
+		if (cursor.getCount() == 0) {
 			return null;
+		}
 		cursor.moveToFirst();
 		return Contact.fromCursor(cursor);
 	}
 
+	public Conversation findConversationByUuid(String conversationUuid) {
+		SQLiteDatabase db = this.getReadableDatabase();
+		String[] selectionArgs = { conversationUuid };
+		Cursor cursor = db.query(Conversation.TABLENAME, null, Conversation.UUID + "=?", selectionArgs, null, null, null);
+		if (cursor.getCount() == 0) {
+			return null;
+		}
+		cursor.moveToFirst();
+		return Conversation.fromCursor(cursor);
+	}
+
+	public Message findMessageByUuid(String messageUuid) {
+		SQLiteDatabase db = this.getReadableDatabase();
+		String[] selectionArgs = { messageUuid };
+		Cursor cursor = db.query(Message.TABLENAME, null, Message.UUID + "=?", selectionArgs, null, null, null);
+		if (cursor.getCount() == 0) {
+			return null;
+		}
+		cursor.moveToFirst();
+		return Message.fromCursor(cursor);
+	}
 	
+	public Account findAccountByUuid(String accountUuid) {
+		SQLiteDatabase db = this.getReadableDatabase();
+		String[] selectionArgs = { accountUuid };
+		Cursor cursor = db.query(Account.TABLENAME, null, Account.UUID + "=?", selectionArgs, null, null, null);
+		if (cursor.getCount() == 0) {
+			return null;
+		}
+		cursor.moveToFirst();
+		return Account.fromCursor(cursor);
+	}
 }

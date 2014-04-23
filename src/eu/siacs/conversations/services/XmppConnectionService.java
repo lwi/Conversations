@@ -1,6 +1,5 @@
 package eu.siacs.conversations.services;
 
-import java.io.File;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
@@ -124,9 +123,7 @@ public class XmppConnectionService extends Service {
 				MessagePacket packet) {
 			Message message = null;
 			boolean notify = true;
-			if(PreferenceManager
-					.getDefaultSharedPreferences(getApplicationContext())
-					.getBoolean("notification_grace_period_after_carbon_received", true)){
+			if(getPreferences().getBoolean("notification_grace_period_after_carbon_received", true)){
 				notify=(SystemClock.elapsedRealtime() - lastCarbonMessageReceived) > CARBON_GRACE_PERIOD;
 			}
 
@@ -136,8 +133,7 @@ public class XmppConnectionService extends Service {
 					message = MessageParser.parsePgpChat(pgpBody, packet,
 							account, service);
 					message.markUnread();
-				} else if (packet.hasChild("body")
-						&& (packet.getBody().startsWith("?OTR"))) {
+				} else if ((packet.getBody()!=null) && (packet.getBody().startsWith("?OTR"))) {
 					message = MessageParser.parseOtrChat(packet, account,
 							service);
 					if (message != null) {
@@ -175,7 +171,8 @@ public class XmppConnectionService extends Service {
 					}
 				}
 			} else if (packet.getType() == MessagePacket.TYPE_ERROR) {
-				message = MessageParser.parseError(packet, account, service);
+				MessageParser.parseError(packet, account, service);
+				return;
 			} else if (packet.getType() == MessagePacket.TYPE_NORMAL) {
 				if (packet.hasChild("x")) {
 					Element x = packet.findChild("x");
@@ -291,7 +288,11 @@ public class XmppConnectionService extends Service {
 				} else {
 					Contact contact = findContact(account, fromParts[0]);
 					if (contact == null) {
-						// most likely roster not synced
+						if ("subscribe".equals(type)) {
+							account.getXmppConnection().addPendingSubscription(fromParts[0]);
+						} else {
+							//Log.d(LOGTAG,packet.getFrom()+ " could not be found");
+						}
 						return;
 					}
 					if (type == null) {
@@ -316,26 +317,30 @@ public class XmppConnectionService extends Service {
 									}
 								}
 							}
-							databaseBackend.updateContact(contact);
+							replaceContactInConversation(account,contact.getJid(), contact);
+							databaseBackend.updateContact(contact,true);
 						} else {
-							// Log.d(LOGTAG,"presence without resource "+packet.toString());
+							//Log.d(LOGTAG,"presence without resource "+packet.toString());
 						}
 					} else if (type.equals("unavailable")) {
 						if (fromParts.length != 2) {
-							// Log.d(LOGTAG,"received presence with no resource "+packet.toString());
+							contact.clearPresences();
 						} else {
 							contact.removePresence(fromParts[1]);
-							databaseBackend.updateContact(contact);
 						}
+						replaceContactInConversation(account,contact.getJid(), contact);
+						databaseBackend.updateContact(contact,true);
 					} else if (type.equals("subscribe")) {
+						Log.d(LOGTAG,"received subscribe packet from "+packet.getFrom());
 						if (contact
 								.getSubscriptionOption(Contact.Subscription.PREEMPTIVE_GRANT)) {
+							Log.d(LOGTAG,"preemptive grant; granting");
 							sendPresenceUpdatesTo(contact);
 							contact.setSubscriptionOption(Contact.Subscription.FROM);
 							contact.resetSubscriptionOption(Contact.Subscription.PREEMPTIVE_GRANT);
-							replaceContactInConversation(contact.getJid(),
+							replaceContactInConversation(account,contact.getJid(),
 									contact);
-							databaseBackend.updateContact(contact);
+							databaseBackend.updateContact(contact,false);
 							if ((contact
 									.getSubscriptionOption(Contact.Subscription.ASKING))
 									&& (!contact
@@ -343,12 +348,11 @@ public class XmppConnectionService extends Service {
 								requestPresenceUpdatesFrom(contact);
 							}
 						} else {
-							// TODO: ask user to handle it maybe
+							account.getXmppConnection().addPendingSubscription(fromParts[0]);
 						}
 					} else {
 						//Log.d(LOGTAG, packet.toString());
 					}
-					replaceContactInConversation(contact.getJid(), contact);
 				}
 			}
 		}
@@ -365,6 +369,10 @@ public class XmppConnectionService extends Service {
 					processRosterItems(account, query);
 					mergePhoneContactsWithRoster(null);
 				}
+			} else if (packet.hasChild("open","http://jabber.org/protocol/ibb")||packet.hasChild("data","http://jabber.org/protocol/ibb")) {
+				XmppConnectionService.this.mJingleConnectionManager.deliverIbbPacket(account,packet);
+			} else {
+				Log.d(LOGTAG,"iq packet arrived "+packet.toString());
 			}
 		}
 	};
@@ -402,16 +410,27 @@ public class XmppConnectionService extends Service {
 		return this.fileBackend;
 	}
 	
-	public Message attachImageToConversation(Conversation conversation, String presence, Uri uri) {
-		Message message = new Message(conversation, "", Message.ENCRYPTION_NONE);
-		message.setPresence(presence);
-		message.setType(Message.TYPE_IMAGE);
-		File file = this.fileBackend.copyImageToPrivateStorage(message, uri);
-		Log.d(LOGTAG,"new file"+file.getAbsolutePath());
-		conversation.getMessages().add(message);
-		databaseBackend.createMessage(message);
-		sendMessage(message, null);
-		return message;
+	public void attachImageToConversation(final Conversation conversation, final String presence, final Uri uri) {
+		new Thread(new Runnable() {
+			
+			@Override
+			public void run() {
+				Message message = new Message(conversation, "", Message.ENCRYPTION_NONE);
+				message.setPresence(presence);
+				message.setType(Message.TYPE_IMAGE);
+				message.setStatus(Message.STATUS_PREPARING);
+				conversation.getMessages().add(message);
+				if (convChangedListener!=null) {
+					convChangedListener.onConversationListChanged();
+				}
+				getFileBackend().copyImageToPrivateStorage(message, uri);
+				message.setStatus(Message.STATUS_OFFERED);
+				if (convChangedListener!=null) {
+					convChangedListener.onConversationListChanged();
+				}
+				sendMessage(message, null);
+			}
+		}).start();
 	}
 	
 	
@@ -449,22 +468,22 @@ public class XmppConnectionService extends Service {
 				} else {
 					if (subscription.equals("remove")) {
 						databaseBackend.deleteContact(contact);
-						replaceContactInConversation(contact.getJid(), null);
+						replaceContactInConversation(account,contact.getJid(), null);
 					} else {
 						contact.parseSubscriptionFromElement(item);
-						databaseBackend.updateContact(contact);
-						replaceContactInConversation(contact.getJid(), contact);
+						databaseBackend.updateContact(contact,false);
+						replaceContactInConversation(account,contact.getJid(), contact);
 					}
 				}
 			}
 		}
 	}
 
-	private void replaceContactInConversation(String jid, Contact contact) {
+	private void replaceContactInConversation(Account account, String jid, Contact contact) {
 		List<Conversation> conversations = getConversations();
-		for (int i = 0; i < conversations.size(); ++i) {
-			if ((conversations.get(i).getContactJid().equals(jid))) {
-				conversations.get(i).setContact(contact);
+		for (Conversation c : conversations) {
+			if (c.getContactJid().equals(jid)&&(c.getAccount()==account)) {
+				c.setContact(contact);
 				break;
 			}
 		}
@@ -624,8 +643,7 @@ public class XmppConnectionService extends Service {
 	}
 
 	public XmppConnection createConnection(Account account) {
-		SharedPreferences sharedPref = PreferenceManager
-				.getDefaultSharedPreferences(getApplicationContext());
+		SharedPreferences sharedPref = getPreferences();
 		account.setResource(sharedPref.getString("resource", "mobile").toLowerCase(Locale.getDefault()));
 		XmppConnection connection = new XmppConnection(account, this.pm);
 		connection.setOnMessagePacketReceivedListener(this.messageListener);
@@ -668,13 +686,14 @@ public class XmppConnectionService extends Service {
 	synchronized public void sendMessage(Message message, String presence) {
 		Account account = message.getConversation().getAccount();
 		Conversation conv = message.getConversation();
+		MessagePacket packet = null;
 		boolean saveInDb = false;
 		boolean addToConversation = false;
+		boolean send = false;
 		if (account.getStatus() == Account.STATUS_ONLINE) {
 			if (message.getType() == Message.TYPE_IMAGE) {
 				mJingleConnectionManager.createNewConnection(message);
 			} else {
-				MessagePacket packet;
 				if (message.getEncryption() == Message.ENCRYPTION_OTR) {
 					if (!conv.hasValidOtrSession()) {
 						// starting otr session. messages will be send later
@@ -684,7 +703,7 @@ public class XmppConnectionService extends Service {
 						// accordingly
 						packet = prepareMessagePacket(account, message,
 								conv.getOtrSession());
-						account.getXmppConnection().sendMessagePacket(packet);
+						send = true;
 						message.setStatus(Message.STATUS_SEND);
 					}
 					saveInDb = true;
@@ -700,11 +719,11 @@ public class XmppConnectionService extends Service {
 					packet.setTo(message.getCounterpart());
 					packet.setBody("This is an XEP-0027 encryted message");
 					packet.addChild("x", "jabber:x:encrypted").setContent(message.getEncryptedBody());
-					account.getXmppConnection().sendMessagePacket(packet);
 					message.setStatus(Message.STATUS_SEND);
 					message.setEncryption(Message.ENCRYPTION_DECRYPTED);
 					saveInDb = true;
 					addToConversation = true;
+					send = true;
 				} else {
 					message.getConversation().endOtrIfNeeded();
 					// don't encrypt
@@ -713,9 +732,8 @@ public class XmppConnectionService extends Service {
 						saveInDb = true;
 						addToConversation = true;
 					}
-	
 					packet = prepareMessagePacket(account, message, null);
-					account.getXmppConnection().sendMessagePacket(packet);
+					send = true;
 				}
 			}
 		} else {
@@ -732,6 +750,9 @@ public class XmppConnectionService extends Service {
 			if (convChangedListener != null) {
 				convChangedListener.onConversationListChanged();
 			}
+		}
+		if ((send)&&(packet!=null)) {
+			account.getXmppConnection().sendMessagePacket(packet);
 		}
 
 	}
@@ -787,6 +808,7 @@ public class XmppConnectionService extends Service {
 			packet.setTo(message.getCounterpart().split("/")[0]);
 			packet.setFrom(account.getJid());
 		}
+		packet.setId(message.getUuid());
 		return packet;
 	}
 
@@ -848,7 +870,7 @@ public class XmppConnectionService extends Service {
 									.getContacts(mWhere.toString());
 							for (Contact contact : contactsToDelete) {
 								databaseBackend.deleteContact(contact);
-								replaceContactInConversation(contact.getJid(),
+								replaceContactInConversation(account,contact.getJid(),
 										null);
 							}
 
@@ -892,16 +914,16 @@ public class XmppConnectionService extends Service {
 										.getString("photouri"));
 								contact.setDisplayName(phoneContact
 										.getString("displayname"));
-								databaseBackend.updateContact(contact);
-								replaceContactInConversation(contact.getJid(),
+								databaseBackend.updateContact(contact,false);
+								replaceContactInConversation(contact.getAccount(),contact.getJid(),
 										contact);
 							} else {
 								if ((contact.getSystemAccount() != null)
 										|| (contact.getProfilePhoto() != null)) {
 									contact.setSystemAccount(null);
 									contact.setPhotoUri(null);
-									databaseBackend.updateContact(contact);
-									replaceContactInConversation(
+									databaseBackend.updateContact(contact,false);
+									replaceContactInConversation(contact.getAccount(),
 											contact.getJid(), contact);
 								}
 							}
@@ -1013,6 +1035,15 @@ public class XmppConnectionService extends Service {
 			this.convChangedListener.onConversationListChanged();
 		}
 	}
+	
+	public void clearConversationHistory(Conversation conversation) {
+		this.databaseBackend.deleteMessagesInConversation(conversation);
+		this.fileBackend.removeFiles(conversation);
+		conversation.getMessages().clear();
+		if (this.convChangedListener != null) {
+			this.convChangedListener.onConversationListChanged();
+		}
+	}
 
 	public int getConversationCount() {
 		return this.databaseBackend.getConversationCount();
@@ -1031,7 +1062,7 @@ public class XmppConnectionService extends Service {
 		Element query = iq.query("jabber:iq:roster");
 		query.addChild("item").setAttribute("jid", contact.getJid()).setAttribute("subscription", "remove");
 		contact.getAccount().getXmppConnection().sendIqPacket(iq, null);
-		replaceContactInConversation(contact.getJid(), null);
+		replaceContactInConversation(contact.getAccount(),contact.getJid(), null);
 		databaseBackend.deleteContact(contact);
 	}
 
@@ -1057,12 +1088,10 @@ public class XmppConnectionService extends Service {
 			OnConversationListChangedListener listener) {
 		this.convChangedListener = listener;
 		this.convChangedListenerCount++;
-		Log.d(LOGTAG,"registered on conv changed in backend ("+convChangedListenerCount+")");
 	}
 
 	public void removeOnConversationListChangedListener() {
 		this.convChangedListenerCount--;
-		Log.d(LOGTAG,"someone on conv changed listener removed listener ("+convChangedListenerCount+")");
 		if (this.convChangedListenerCount==0) {
 			this.convChangedListener = null;
 		}
@@ -1190,8 +1219,8 @@ public class XmppConnectionService extends Service {
 	}
 
 	public void updateContact(Contact contact) {
-		databaseBackend.updateContact(contact);
-		replaceContactInConversation(contact.getJid(), contact);
+		databaseBackend.updateContact(contact,false);
+		replaceContactInConversation(contact.getAccount(),contact.getJid(), contact);
 	}
 
 	public void updateMessage(Message message) {
@@ -1199,8 +1228,7 @@ public class XmppConnectionService extends Service {
 	}
 
 	public void createContact(Contact contact) {
-		SharedPreferences sharedPref = PreferenceManager
-				.getDefaultSharedPreferences(getApplicationContext());
+		SharedPreferences sharedPref = getPreferences();
 		boolean autoGrant = sharedPref.getBoolean("grant_new_contacts", true);
 		if (autoGrant) {
 			contact.setSubscriptionOption(Contact.Subscription.PREEMPTIVE_GRANT);
@@ -1219,8 +1247,12 @@ public class XmppConnectionService extends Service {
 		account.getXmppConnection().sendIqPacket(iq, null);
 		if (autoGrant) {
 			requestPresenceUpdatesFrom(contact);
+			if (account.getXmppConnection().hasPendingSubscription(contact.getJid())) {
+				Log.d("xmppService","contact had pending subscription");
+				sendPresenceUpdatesTo(contact);
+			}
 		}
-		replaceContactInConversation(contact.getJid(), contact);
+		replaceContactInConversation(contact.getAccount(),contact.getJid(), contact);
 	}
 
 	public void requestPresenceUpdatesFrom(Contact contact) {
@@ -1365,5 +1397,34 @@ public class XmppConnectionService extends Service {
 					.sendMessagePacket(packet);
 		}
 
+	}
+	
+	public boolean markMessage(Account account, String recipient, String uuid, int status) {
+		boolean marked = false;
+		for(Conversation conversation : getConversations()) {
+			if (conversation.getContactJid().equals(recipient)&&conversation.getAccount().equals(account)) {
+				for(Message message : conversation.getMessages()) {
+					if (message.getUuid().equals(uuid)) {
+						markMessage(message, status);
+						marked = true;
+						break;
+					}
+				}
+				break;
+			}
+		}
+		return marked;
+	}
+	
+	public void markMessage(Message message, int status) {
+		message.setStatus(status);
+		databaseBackend.updateMessage(message);
+		if (convChangedListener!=null) {
+			convChangedListener.onConversationListChanged();
+		}
+	}
+	
+	public SharedPreferences getPreferences() {
+		return PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
 	}
 }

@@ -13,6 +13,7 @@ import eu.siacs.conversations.xml.Element;
 
 import android.content.ContentValues;
 import android.database.Cursor;
+import android.util.Log;
 
 public class Contact extends AbstractEntity implements Serializable {
 	private static final long serialVersionUID = -4570817093119419962L;
@@ -38,7 +39,7 @@ public class Contact extends AbstractEntity implements Serializable {
 	protected Presences presences = new Presences();
 
 	protected Account account;
-	
+
 	protected boolean inRoster = true;
 
 	public Contact(Account account, String displayName, String jid,
@@ -119,7 +120,7 @@ public class Contact extends AbstractEntity implements Serializable {
 				cursor.getString(cursor.getColumnIndex(KEYS)),
 				cursor.getString(cursor.getColumnIndex(PRESENCES)));
 	}
-	
+
 	public int getSubscription() {
 		return this.subscription;
 	}
@@ -151,8 +152,10 @@ public class Contact extends AbstractEntity implements Serializable {
 				return false;
 			} else {
 				return (domainParts[0].equals("conf")
-						|| domainParts[0].equals("conference") || domainParts[0]
-							.equals("muc"));
+						|| domainParts[0].equals("conference")
+						|| domainParts[0].equals("muc")
+						|| domainParts[0].equals("sala")
+						|| domainParts[0].equals("salas"));
 			}
 		}
 	}
@@ -167,6 +170,10 @@ public class Contact extends AbstractEntity implements Serializable {
 
 	public void removePresence(String resource) {
 		this.presences.removePresence(resource);
+	}
+
+	public void clearPresences() {
+		this.presences.clearPresences();
 	}
 
 	public int getMostAvailableStatus() {
@@ -193,7 +200,8 @@ public class Contact extends AbstractEntity implements Serializable {
 		Set<String> set = new HashSet<String>();
 		try {
 			if (this.keys.has("otr_fingerprints")) {
-				JSONArray fingerprints = this.keys.getJSONArray("otr_fingerprints");
+				JSONArray fingerprints = this.keys
+						.getJSONArray("otr_fingerprints");
 				for (int i = 0; i < fingerprints.length(); ++i) {
 					set.add(fingerprints.getString(i));
 				}
@@ -220,15 +228,15 @@ public class Contact extends AbstractEntity implements Serializable {
 
 		}
 	}
-	
+
 	public void setPgpKeyId(long keyId) {
 		try {
 			this.keys.put("pgp_keyid", keyId);
 		} catch (JSONException e) {
-			
+
 		}
 	}
-	
+
 	public long getPgpKeyId() {
 		if (this.keys.has("pgp_keyid")) {
 			try {
@@ -240,24 +248,24 @@ public class Contact extends AbstractEntity implements Serializable {
 			return 0;
 		}
 	}
-	
+
 	public void setSubscriptionOption(int option) {
 		this.subscription |= 1 << option;
 	}
-	
+
 	public void resetSubscriptionOption(int option) {
 		this.subscription &= ~(1 << option);
 	}
-	
+
 	public boolean getSubscriptionOption(int option) {
 		return ((this.subscription & (1 << option)) != 0);
 	}
-	
+
 	public void parseSubscriptionFromElement(Element item) {
 		String ask = item.getAttribute("ask");
 		String subscription = item.getAttribute("subscription");
-		
-		if (subscription!=null) {
+
+		if (subscription != null) {
 			if (subscription.equals("to")) {
 				this.resetSubscriptionOption(Contact.Subscription.FROM);
 				this.setSubscriptionOption(Contact.Subscription.TO);
@@ -269,15 +277,14 @@ public class Contact extends AbstractEntity implements Serializable {
 				this.setSubscriptionOption(Contact.Subscription.FROM);
 			}
 		}
-		
-		if ((ask!=null)&&(ask.equals("subscribe"))) {
+
+		if ((ask != null) && (ask.equals("subscribe"))) {
 			this.setSubscriptionOption(Contact.Subscription.ASKING);
 		} else {
 			this.resetSubscriptionOption(Contact.Subscription.ASKING);
 		}
 	}
-	
-	
+
 	public class Subscription {
 		public static final int TO = 0;
 		public static final int FROM = 1;
@@ -285,11 +292,10 @@ public class Contact extends AbstractEntity implements Serializable {
 		public static final int PREEMPTIVE_GRANT = 4;
 	}
 
-
 	public void flagAsNotInRoster() {
 		this.inRoster = false;
 	}
-	
+
 	public boolean isInRoster() {
 		return this.inRoster;
 	}

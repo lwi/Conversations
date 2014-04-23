@@ -77,6 +77,8 @@ public class XmppConnection implements Runnable {
 	private Element streamFeatures;
 	private HashMap<String, List<String>> disco = new HashMap<String, List<String>>();
 	
+	private HashSet<String> pendingSubscriptions = new HashSet<String>();
+	
 	private String streamId = null;
 	private int smVersion = 3;
 	
@@ -674,7 +676,6 @@ public class XmppConnection implements Runnable {
 								"var"));
 					}
 				}
-				Log.d(LOGTAG,"put "+server+" "+features.toString());
 				disco.put(server, features);
 				
 				if (account.getServer().equals(server)) {
@@ -748,8 +749,10 @@ public class XmppConnection implements Runnable {
 	}
 
 	public void sendIqPacket(IqPacket packet, OnIqPacketReceived callback) {
-		String id = nextRandomId();
-		packet.setAttribute("id", id);
+		if (packet.getId()==null) {
+			String id = nextRandomId();
+			packet.setAttribute("id", id);
+		}
 		packet.setFrom(account.getFullJid());
 		this.sendPacket(packet, callback);
 	}
@@ -902,5 +905,14 @@ public class XmppConnection implements Runnable {
 
 	public String getMucServer() {
 		return findDiscoItemByFeature("http://jabber.org/protocol/muc");
+	}
+	
+	public boolean hasPendingSubscription(String jid) {
+		return this.pendingSubscriptions.contains(jid);
+	}
+	
+	public void addPendingSubscription(String jid) {
+		Log.d(LOGTAG,"adding "+jid+" to pending subscriptions");
+		this.pendingSubscriptions.add(jid);
 	}
 }
