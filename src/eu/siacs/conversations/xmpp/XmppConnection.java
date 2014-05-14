@@ -41,7 +41,6 @@ import android.os.SystemClock;
 import android.util.Log;
 import eu.siacs.conversations.entities.Account;
 import eu.siacs.conversations.utils.CryptoHelper;
-import eu.siacs.conversations.utils.DNSHelper;
 import eu.siacs.conversations.utils.zlib.ZLibOutputStream;
 import eu.siacs.conversations.utils.zlib.ZLibInputStream;
 import eu.siacs.conversations.xml.Element;
@@ -130,29 +129,7 @@ public class XmppConnection implements Runnable {
 			tagWriter = new TagWriter();
 			packetCallbacks.clear();
 			this.changeStatus(Account.STATUS_CONNECTING);
-			Bundle namePort = DNSHelper.getSRVRecord(account.getServer());
-			if ("timeout".equals(namePort.getString("error"))) {
-				Log.d(LOGTAG,account.getJid()+": dns timeout");
-				this.changeStatus(Account.STATUS_OFFLINE);
-				return;
-			}
-			String srvRecordServer = namePort.getString("name");
-			String srvIpServer = namePort.getString("ipv4");
-			int srvRecordPort = namePort.getInt("port");
-			if (srvRecordServer != null) {
-				if (srvIpServer != null) {
-					Log.d(LOGTAG, account.getJid() + ": using values from dns "
-						+ srvRecordServer + "[" + srvIpServer + "]:"
-						+ srvRecordPort);
-					socket = new Socket(srvIpServer, srvRecordPort);
-				} else {
-					Log.d(LOGTAG, account.getJid() + ": using values from dns "
-						+ srvRecordServer + ":" + srvRecordPort);
-					socket = new Socket(srvRecordServer, srvRecordPort);
-				}
-			} else {
-				socket = new Socket(account.getServer(), 5222);
-			}
+			socket = new Socket(account.getServer(), 5222);
 			OutputStream out = socket.getOutputStream();
 			tagWriter.setOutputStream(out);
 			InputStream in = socket.getInputStream();

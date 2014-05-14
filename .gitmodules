@@ -1,4 +1,0 @@
-[submodule "libs/minidns"]
-	path = libs/minidns
-	url = https://github.com/rtreffer/minidns.git
-
