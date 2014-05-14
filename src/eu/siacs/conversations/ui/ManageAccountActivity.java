@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import eu.siacs.conversations.R;
-import eu.siacs.conversations.crypto.PgpEngine;
-import eu.siacs.conversations.crypto.PgpEngine.UserInputRequiredException;
 import eu.siacs.conversations.entities.Account;
 import eu.siacs.conversations.ui.EditAccount.EditAccountListener;
 import eu.siacs.conversations.xmpp.OnTLSExceptionReceived;
@@ -36,8 +34,6 @@ import android.widget.TextView;
 
 public class ManageAccountActivity extends XmppActivity {
 
-	public static final int REQUEST_ANNOUNCE_PGP = 0x73731;
-	
 	protected boolean isActionMode = false;
 	protected ActionMode actionMode;
 	protected Account selectedAccountForActionMode = null;
@@ -275,19 +271,6 @@ public class ManageAccountActivity extends XmppActivity {
 								});
 								builder.setNegativeButton("Cancel",null);
 								builder.create().show();
-							} else if (item.getItemId()==R.id.mgmt_account_announce_pgp) {
-								if (activity.hasPgp()) {
-									mode.finish();
-									try {
-										xmppConnectionService.generatePgpAnnouncement(selectedAccountForActionMode);
-									} catch (PgpEngine.UserInputRequiredException e) {
-										try {
-											startIntentSenderForResult(e.getPendingIntent().getIntentSender(), REQUEST_ANNOUNCE_PGP, null, 0, 0, 0);
-										} catch (SendIntentException e1) {
-											Log.d("gultsch","sending intent failed");
-										}
-									}
-								}
 							} else if (item.getItemId() == R.id.mgmt_otr_key) {
 								AlertDialog.Builder builder = new AlertDialog.Builder(activity);
 								builder.setTitle("OTR Fingerprint");
@@ -463,18 +446,5 @@ public class ManageAccountActivity extends XmppActivity {
 	 @Override
 	 protected void onActivityResult(int requestCode, int resultCode, Intent data) {
 		 super.onActivityResult(requestCode, resultCode, data);
-		 if (resultCode == RESULT_OK) {
-			if (requestCode == REQUEST_ANNOUNCE_PGP) {
-				 try {
-					xmppConnectionService.generatePgpAnnouncement(selectedAccountForActionMode);
-				} catch (UserInputRequiredException e) {
-					try {
-						startIntentSenderForResult(e.getPendingIntent().getIntentSender(), REQUEST_ANNOUNCE_PGP, null, 0, 0, 0);
-					} catch (SendIntentException e1) {
-						Log.d(LOGTAG,"sending intent failed");
-					}
-				}
-			 }
-		 }
 	 }
 }

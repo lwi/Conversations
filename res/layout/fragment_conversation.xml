@@ -121,32 +121,5 @@
             android:typeface="monospace"/>
         
     </LinearLayout>
-    <LinearLayout
-        android:id="@+id/pgp_keyentry"
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:background="@drawable/bluebackground"
-        android:orientation="vertical"
-        android:visibility="gone"
-        >
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="OpenPGP encrypted messages found"
-            android:textColor="#eee"
-            android:textStyle="bold"
-            android:padding="8dp"
-            android:textSize="20sp"/>
-        <TextView 
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="#eee"
-            android:text="Click here to enter passphrase and decrypt messages"
-            android:paddingLeft="8dp"
-            android:paddingBottom="8dp"
-            android:textSize="14sp"/>
-        
-    </LinearLayout>
     </LinearLayout>
 </RelativeLayout>

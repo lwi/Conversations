@@ -21,7 +21,6 @@ public class Message extends AbstractEntity {
 	public static final int STATUS_OFFERED = 6;
 
 	public static final int ENCRYPTION_NONE = 0;
-	public static final int ENCRYPTION_PGP = 1;
 	public static final int ENCRYPTION_OTR = 2;
 	public static final int ENCRYPTION_DECRYPTED = 3;
 	
