@@ -1,6 +1,7 @@
 package eu.siacs.conversations.persistance;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -13,11 +14,9 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.util.Log;
 import android.util.LruCache;
-
-import eu.siacs.conversations.entities.Account;
+import eu.siacs.conversations.R;
 import eu.siacs.conversations.entities.Conversation;
 import eu.siacs.conversations.entities.Message;
-import eu.siacs.conversations.services.XmppConnectionService;
 import eu.siacs.conversations.xmpp.jingle.JingleFile;
 
 public class FileBackend {
@@ -40,16 +39,29 @@ public class FileBackend {
 
 	}
 
+	public LruCache<String, Bitmap> getThumbnailCache() {
+		return thumbnailCache;
+	}
+
 	public JingleFile getJingleFile(Message message) {
+		return getJingleFile(message, true);
+	}
+
+	public JingleFile getJingleFile(Message message, boolean decrypted) {
 		Conversation conversation = message.getConversation();
 		String prefix = context.getFilesDir().getAbsolutePath();
 		String path = prefix + "/" + conversation.getAccount().getJid() + "/"
 				+ conversation.getContactJid();
-		String filename = message.getUuid() + ".webp";
+		String filename;
+		if ((decrypted) || (message.getEncryption() == Message.ENCRYPTION_NONE)) {
+			filename = message.getUuid() + ".webp";
+		} else {
+			filename = message.getUuid() + ".webp.pgp";
+		}
 		return new JingleFile(path + "/" + filename);
 	}
 
-	private Bitmap resize(Bitmap originalBitmap, int size) {
+	public Bitmap resize(Bitmap originalBitmap, int size) {
 		int w = originalBitmap.getWidth();
 		int h = originalBitmap.getHeight();
 		if (Math.max(w, h) > size) {
@@ -70,33 +82,49 @@ public class FileBackend {
 		}
 	}
 
-	public JingleFile copyImageToPrivateStorage(Message message, Uri image) {
+	public JingleFile copyImageToPrivateStorage(Message message, Uri image)
+			throws ImageCopyException {
 		try {
-			InputStream is = context.getContentResolver()
-					.openInputStream(image);
+			InputStream is;
+			if (image != null) {
+				is = context.getContentResolver().openInputStream(image);
+			} else {
+				is = new FileInputStream(getIncomingFile());
+			}
 			JingleFile file = getJingleFile(message);
 			file.getParentFile().mkdirs();
 			file.createNewFile();
 			OutputStream os = new FileOutputStream(file);
 			Bitmap originalBitmap = BitmapFactory.decodeStream(is);
+			if (originalBitmap == null) {
+				os.close();
+				throw new ImageCopyException(R.string.error_not_an_image_file);
+			}
 			is.close();
+			if (image == null) {
+				getIncomingFile().delete();
+			}
 			Bitmap scalledBitmap = resize(originalBitmap, IMAGE_SIZE);
 			boolean success = scalledBitmap.compress(
 					Bitmap.CompressFormat.WEBP, 75, os);
 			if (!success) {
-				// Log.d("xmppService", "couldnt compress");
+				throw new ImageCopyException(R.string.error_compressing_image);
 			}
+			os.flush();
 			os.close();
+			long size = file.getSize();
+			int width = scalledBitmap.getWidth();
+			int height = scalledBitmap.getHeight();
+			message.setBody("" + size + "," + width + "," + height);
 			return file;
 		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			throw new ImageCopyException(R.string.error_file_not_found);
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			throw new ImageCopyException(R.string.error_io_exception);
+		} catch (SecurityException e) {
+			throw new ImageCopyException(
+					R.string.error_security_exception_during_image_copy);
 		}
-
-		return null;
 	}
 
 	public Bitmap getImageFromMessage(Message message) {
@@ -104,10 +132,10 @@ public class FileBackend {
 				.getAbsolutePath());
 	}
 
-	public Bitmap getThumbnailFromMessage(Message message, int size)
+	public Bitmap getThumbnail(Message message, int size, boolean cacheOnly)
 			throws FileNotFoundException {
 		Bitmap thumbnail = thumbnailCache.get(message.getUuid());
-		if (thumbnail == null) {
+		if ((thumbnail == null) && (!cacheOnly)) {
 			Bitmap fullsize = BitmapFactory.decodeFile(getJingleFile(message)
 					.getAbsolutePath());
 			if (fullsize == null) {
@@ -138,5 +166,22 @@ public class FileBackend {
 				deleteFile(c);
 		}
 		f.delete();
+	}
+
+	public File getIncomingFile() {
+		return new File(context.getFilesDir().getAbsolutePath() + "/incoming");
+	}
+
+	public class ImageCopyException extends Exception {
+		private static final long serialVersionUID = -1010013599132881427L;
+		private int resId;
+
+		public ImageCopyException(int resId) {
+			this.resId = resId;
+		}
+
+		public int getResId() {
+			return resId;
+		}
 	}
 }

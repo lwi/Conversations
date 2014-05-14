@@ -1,19 +1,27 @@
 package eu.siacs.conversations.ui;
 
 import eu.siacs.conversations.R;
+import eu.siacs.conversations.entities.Account;
 import eu.siacs.conversations.entities.Conversation;
+import eu.siacs.conversations.entities.Message;
 import eu.siacs.conversations.services.XmppConnectionService;
 import eu.siacs.conversations.services.XmppConnectionService.XmppConnectionBinder;
 import eu.siacs.conversations.utils.ExceptionHelper;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.app.AlertDialog.Builder;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.DialogInterface.OnClickListener;
+import android.content.IntentSender.SendIntentException;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
@@ -112,5 +120,21 @@ public abstract class XmppActivity extends Activity {
 		viewConversationIntent.setFlags(viewConversationIntent.getFlags()
 				| Intent.FLAG_ACTIVITY_CLEAR_TOP);
 		startActivity(viewConversationIntent);
+	}
+	
+	protected void displayErrorDialog(final int errorCode) {
+		runOnUiThread(new Runnable() {
+			
+			@Override
+			public void run() {
+				AlertDialog.Builder builder = new AlertDialog.Builder(XmppActivity.this);
+				builder.setIconAttribute(android.R.attr.alertDialogIcon);
+				builder.setTitle(getString(R.string.error));
+				builder.setMessage(errorCode);
+				builder.setNeutralButton(R.string.accept, null);
+				builder.create().show();
+			}
+		});
+		
 	}
 }

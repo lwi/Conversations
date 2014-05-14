@@ -10,6 +10,7 @@ import eu.siacs.conversations.xmpp.OnTLSExceptionReceived;
 import eu.siacs.conversations.xmpp.XmppConnection;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnClickListener;
@@ -33,7 +34,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 public class ManageAccountActivity extends XmppActivity {
-
+	
 	protected boolean isActionMode = false;
 	protected ActionMode actionMode;
 	protected Account selectedAccountForActionMode = null;
@@ -278,7 +279,10 @@ public class ManageAccountActivity extends XmppActivity {
 								View view = (View) getLayoutInflater().inflate(R.layout.otr_fingerprint, null);
 								if (fingerprintTxt!=null) {
 									TextView fingerprint = (TextView) view.findViewById(R.id.otr_fingerprint);
+									TextView noFingerprintView = (TextView) view.findViewById(R.id.otr_no_fingerprint);
 									fingerprint.setText(fingerprintTxt);
+									fingerprint.setVisibility(View.VISIBLE);
+									noFingerprintView.setVisibility(View.GONE);
 								}
 								builder.setView(view);
 								builder.setPositiveButton("Done", null);
@@ -349,7 +353,7 @@ public class ManageAccountActivity extends XmppActivity {
 			}
 		});
 	}
-
+	
 	@Override
 	protected void onStop() {
 		if (xmppConnectionServiceBound) {

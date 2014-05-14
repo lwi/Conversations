@@ -302,26 +302,6 @@ public class UIHelper {
 				bgColor, fgColor);
 	}
 
-	public static Bitmap getErrorPicture(int size) {
-		Bitmap bitmap = Bitmap
-				.createBitmap(size, size, Bitmap.Config.ARGB_8888);
-		Canvas canvas = new Canvas(bitmap);
-
-		bitmap.eraseColor(0xFFe92727);
-
-		Paint paint = new Paint();
-		paint.setColor(0xffe5e5e5);
-		paint.setTextSize((float) (size * 0.9));
-		paint.setAntiAlias(true);
-		Rect rect = new Rect();
-		paint.getTextBounds("!", 0, 1, rect);
-		float width = paint.measureText("!");
-		canvas.drawText("!", (size / 2) - (width / 2),
-				(size / 2) + (rect.height() / 2), paint);
-
-		return bitmap;
-	}
-	
 	public static void showErrorNotification(Context context, List<Account> accounts) {
 		NotificationManager mNotificationManager = (NotificationManager) context
 				.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -409,7 +389,7 @@ public class UIHelper {
 							context, true));
 			mBuilder.setContentTitle(conversation.getName(useSubject));
 			if (notify) {
-				mBuilder.setTicker(conversation.getLatestMessage().getBody().trim());
+				mBuilder.setTicker(conversation.getLatestMessage().getReadableBody(context));
 			}
 			StringBuilder bigText = new StringBuilder();
 			List<Message> messages = conversation.getMessages();
@@ -417,10 +397,10 @@ public class UIHelper {
 			for (int i = messages.size() - 1; i >= 0; --i) {
 				if (!messages.get(i).isRead()) {
 					if (i == messages.size() - 1) {
-						firstLine = messages.get(i).getBody().trim();
+						firstLine = messages.get(i).getReadableBody(context);
 						bigText.append(firstLine);
 					} else {
-						firstLine = messages.get(i).getBody().trim();
+						firstLine = messages.get(i).getReadableBody(context);
 						bigText.insert(0, firstLine + "\n");
 					}
 				} else {
@@ -442,7 +422,7 @@ public class UIHelper {
 					names.append(unread.get(i).getName(useSubject));
 				}
 				style.addLine(Html.fromHtml("<b>" + unread.get(i).getName(useSubject)
-						+ "</b> " + unread.get(i).getLatestMessage().getBody().trim()));
+						+ "</b> " + unread.get(i).getLatestMessage().getReadableBody(context)));
 			}
 			mBuilder.setContentTitle(unread.size() + " unread Conversations");
 			mBuilder.setContentText(names.toString());

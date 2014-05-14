@@ -15,7 +15,6 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
-import android.util.Log;
 
 public class Conversation extends AbstractEntity {
 
@@ -56,7 +55,8 @@ public class Conversation extends AbstractEntity {
 
 	private transient String otrFingerprint = null;
 
-	public int nextMessageEncryption = Message.ENCRYPTION_NONE;
+	private int nextMessageEncryption = -1;
+	private String nextMessage;
 
 	private transient MucOptions mucOptions = null;
 
@@ -116,7 +116,9 @@ public class Conversation extends AbstractEntity {
 			message.setTime(getCreated());
 			return message;
 		} else {
-			return this.messages.get(this.messages.size() - 1);
+			Message message = this.messages.get(this.messages.size() - 1);
+			message.setConversation(this);
+			return message;
 		}
 	}
 
@@ -235,7 +237,6 @@ public class Conversation extends AbstractEntity {
 				}
 				return this.otrSession;
 			} catch (OtrException e) {
-				Log.d("xmppServic", "couldnt start otr");
 				return null;
 			}
 		}
@@ -317,5 +318,29 @@ public class Conversation extends AbstractEntity {
 	
 	public String getNextPresence() {
 		return this.nextPresence;
+	}
+	
+	public int getLatestEncryption() {
+		int latestEncryption = this.getLatestMessage().getEncryption();
+		return latestEncryption;
+	}
+	
+	public int getNextEncryption() {
+		if (this.nextMessageEncryption == -1) {
+			return this.getLatestEncryption();
+		}
+		return this.nextMessageEncryption;
+	}
+	
+	public void setNextEncryption(int encryption) {
+		this.nextMessageEncryption = encryption;
+	}
+	
+	public String getNextMessage() {
+		return this.nextMessage;
+	}
+	
+	public void setNextMessage(String message) {
+		this.nextMessage = message;
 	}
 }

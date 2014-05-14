@@ -1,7 +1,9 @@
 package eu.siacs.conversations.entities;
 
+import eu.siacs.conversations.R;
 import eu.siacs.conversations.xmpp.jingle.JingleConnection;
 import android.content.ContentValues;
+import android.content.Context;
 import android.database.Cursor;
 
 public class Message extends AbstractEntity {
@@ -17,12 +19,12 @@ public class Message extends AbstractEntity {
 	public static final int STATUS_SEND = 2;
 	public static final int STATUS_SEND_FAILED = 3;
 	public static final int STATUS_SEND_REJECTED = 4;
-	public static final int STATUS_PREPARING = 5;
 	public static final int STATUS_OFFERED = 6;
 
 	public static final int ENCRYPTION_NONE = 0;
 	public static final int ENCRYPTION_OTR = 2;
 	public static final int ENCRYPTION_DECRYPTED = 3;
+	public static final int ENCRYPTION_DECRYPTION_FAILED = 4;
 	
 	public static final int TYPE_TEXT = 0;
 	public static final int TYPE_IMAGE = 1;
@@ -101,6 +103,18 @@ public class Message extends AbstractEntity {
 
 	public String getBody() {
 		return body;
+	}
+	
+	public String getReadableBody(Context context) {
+		if ((encryption == ENCRYPTION_OTR)&&(type == TYPE_IMAGE)) {
+			return ""+context.getText(R.string.encrypted_image_received);
+		} else if (encryption == ENCRYPTION_DECRYPTION_FAILED) {
+			return ""+context.getText(R.string.decryption_failed);
+		} else if (type == TYPE_IMAGE) {
+			return ""+context.getText(R.string.image_file);
+		} else {
+			return body.trim();
+		}
 	}
 
 	public long getTimeSent() {

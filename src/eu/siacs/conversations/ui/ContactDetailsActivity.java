@@ -5,9 +5,11 @@ import java.util.Iterator;
 import java.util.Locale;
 
 import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentSender.SendIntentException;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.ContactsContract.CommonDataKinds;
@@ -168,7 +170,7 @@ public class ContactDetailsActivity extends XmppActivity {
 		if (contact.getSubscriptionOption(Contact.Subscription.FROM)) {
 			send.setChecked(true);
 		} else {
-			send.setText("Preemptively grant subscription request");
+			send.setText(R.string.preemptively_grant);
 			if (contact
 					.getSubscriptionOption(Contact.Subscription.PREEMPTIVE_GRANT)) {
 				send.setChecked(true);
@@ -179,7 +181,7 @@ public class ContactDetailsActivity extends XmppActivity {
 		if (contact.getSubscriptionOption(Contact.Subscription.TO)) {
 			receive.setChecked(true);
 		} else {
-			receive.setText("Ask for presence updates");
+			receive.setText(R.string.ask_for_presence_updates);
 			askAgain.setVisibility(View.VISIBLE);
 			askAgain.setOnClickListener(new OnClickListener() {
 				

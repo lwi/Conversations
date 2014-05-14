@@ -44,21 +44,25 @@ public class JingleConnectionManager {
 					return;
 				}
 			}
-			Log.d("xmppService","delivering packet failed "+packet.toString());
+			account.getXmppConnection().sendIqPacket(packet.generateRespone(IqPacket.TYPE_ERROR), null);
 		}
 	}
 
 	public JingleConnection createNewConnection(Message message) {
 		JingleConnection connection = new JingleConnection(this);
 		connection.init(message);
-		connections.add(connection);
+		this.connections.add(connection);
 		return connection;
 	}
 
 	public JingleConnection createNewConnection(JinglePacket packet) {
 		JingleConnection connection = new JingleConnection(this);
-		connections.add(connection);
+		this.connections.add(connection);
 		return connection;
+	}
+	
+	public void finishConnection(JingleConnection connection) {
+		this.connections.remove(connection);
 	}
 
 	public XmppConnectionService getXmppConnectionService() {
