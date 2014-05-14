@@ -10,8 +10,5 @@
     android:id="@+id/encryption_choice_otr"
     android:title="OTR"
     />
-<item
-    android:id="@+id/encryption_choice_pgp"
-    android:title="OpenPGP"/>
 </group>
 </menu>

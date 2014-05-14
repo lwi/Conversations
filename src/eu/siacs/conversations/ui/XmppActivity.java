@@ -79,19 +79,6 @@ public abstract class XmppActivity extends Activity {
 		}
 	}
 	
-	public boolean hasPgp() {
-		if (xmppConnectionService.getPgpEngine()!=null) {
-			return true;
-		} else {
-			Builder builder = new AlertDialog.Builder(this);
-			builder.setTitle("OpenKeychain not found");
-			builder.setIconAttribute(android.R.attr.alertDialogIcon);
-			builder.setMessage("Please make sure you have installed OpenKeychain");
-			builder.create().show();
-			return false;
-		}
-	}
-	
 	abstract void onBackendConnected();
 	
 	public boolean onOptionsItemSelected(MenuItem item) {

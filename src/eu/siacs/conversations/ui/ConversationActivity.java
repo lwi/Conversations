@@ -49,7 +49,6 @@ public class ConversationActivity extends XmppActivity {
 	public static final String PRESENCE = "eu.siacs.conversations.presence";
 
 	public static final int REQUEST_SEND_MESSAGE = 0x75441;
-	public static final int REQUEST_DECRYPT_PGP = 0x76783;
 	private static final int ATTACH_FILE = 0x48502;
 
 	protected SlidingPaneLayout spl;
@@ -344,10 +343,6 @@ public class ConversationActivity extends XmppActivity {
 							selConv.nextMessageEncryption = Message.ENCRYPTION_OTR;
 							item.setChecked(true);
 							break;
-						case R.id.encryption_choice_pgp:
-							selConv.nextMessageEncryption = Message.ENCRYPTION_PGP;
-							item.setChecked(true);
-							break;
 						default:
 							selConv.nextMessageEncryption = Message.ENCRYPTION_NONE;
 							break;
@@ -364,14 +359,6 @@ public class ConversationActivity extends XmppActivity {
 					break;
 				case Message.ENCRYPTION_OTR:
 					popup.getMenu().findItem(R.id.encryption_choice_otr)
-							.setChecked(true);
-					break;
-				case Message.ENCRYPTION_PGP:
-					popup.getMenu().findItem(R.id.encryption_choice_pgp)
-							.setChecked(true);
-					break;
-				case Message.ENCRYPTION_DECRYPTED:
-					popup.getMenu().findItem(R.id.encryption_choice_pgp)
 							.setChecked(true);
 					break;
 				default:
@@ -528,13 +515,7 @@ public class ConversationActivity extends XmppActivity {
 	protected void onActivityResult(int requestCode, int resultCode, final Intent data) {
 		super.onActivityResult(requestCode, resultCode, data);
 		if (resultCode == RESULT_OK) {
-			if (requestCode == REQUEST_DECRYPT_PGP) {
-				ConversationFragment selectedFragment = (ConversationFragment) getFragmentManager()
-						.findFragmentByTag("conversation");
-				if (selectedFragment != null) {
-					selectedFragment.hidePgpPassphraseBox();
-				}
-			} else if (requestCode == ATTACH_FILE) {
+			if (requestCode == ATTACH_FILE) {
 				Conversation conversation = getSelectedConversation();
 				String presence = conversation.getNextPresence();
 				xmppConnectionService.attachImageToConversation(conversation, presence, data.getData());

@@ -13,7 +13,6 @@
     <string name="title_activity_contacts">Contacts</string>
     <string name="just_now">just now</string>
     <string name="sending">sending&#8230;</string>
-    <string name="announce_pgp">Renew PGP announcement</string>
     <string name="encrypted_message">Decrypting message. Please wait&#8230;</string>
     <string name="conference_details">Conference Details</string>
     <string name="nick_in_use">Nickname is already in use</string>
@@ -63,7 +62,6 @@
     <string name="send_message_to_conference">Send message to conference</string>
     <string name="send_plain_text_message">Send plain text message</string>
     <string name="send_otr_message">Send OTR encrypted message</string>
-    <string name="send_pgp_message">Send openPGP encrypted message</string>
     <string name="your_nick_has_been_changed">Your nickname has been changed</string>
     <string name="download_image">Download Image</string>
 </resources>

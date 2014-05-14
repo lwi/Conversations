@@ -10,15 +10,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 
-import org.openintents.openpgp.util.OpenPgpApi;
-import org.openintents.openpgp.util.OpenPgpServiceConnection;
-
 import net.java.otr4j.OtrException;
 import net.java.otr4j.session.Session;
 import net.java.otr4j.session.SessionStatus;
 
-import eu.siacs.conversations.crypto.PgpEngine;
-import eu.siacs.conversations.crypto.PgpEngine.OpenPgpException;
 import eu.siacs.conversations.entities.Account;
 import eu.siacs.conversations.entities.Contact;
 import eu.siacs.conversations.entities.Conversation;
@@ -128,12 +123,7 @@ public class XmppConnectionService extends Service {
 			}
 
 			if ((packet.getType() == MessagePacket.TYPE_CHAT)) {
-				String pgpBody = MessageParser.getPgpBody(packet);
-				if (pgpBody != null) {
-					message = MessageParser.parsePgpChat(pgpBody, packet,
-							account, service);
-					message.markUnread();
-				} else if ((packet.getBody()!=null) && (packet.getBody().startsWith("?OTR"))) {
+				if ((packet.getBody()!=null) && (packet.getBody().startsWith("?OTR"))) {
 					message = MessageParser.parseOtrChat(packet, account,
 							service);
 					if (message != null) {
@@ -298,25 +288,6 @@ public class XmppConnectionService extends Service {
 					if (type == null) {
 						if (fromParts.length == 2) {
 							contact.updatePresence(fromParts[1], Presences.parseShow(packet.findChild("show")));
-							PgpEngine pgp = getPgpEngine();
-							if (pgp != null) {
-								Element x = packet.findChild("x","jabber:x:signed");
-								if (x != null) {
-									try {
-										Element status = packet.findChild("status");
-										String msg;
-										if (status!=null) {
-											msg = status.getContent();
-										} else {
-											msg = "";
-										}
-										contact.setPgpKeyId(pgp.fetchKeyId(account,msg, x
-														.getContent()));
-									} catch (OpenPgpException e) {
-										Log.d(LOGTAG, "faulty pgp. just ignore");
-									}
-								}
-							}
 							replaceContactInConversation(account,contact.getJid(), contact);
 							databaseBackend.updateContact(contact,true);
 						} else {
@@ -385,26 +356,10 @@ public class XmppConnectionService extends Service {
 		}
 	};
 
-	private OpenPgpServiceConnection pgpServiceConnection;
-	private PgpEngine mPgpEngine = null;
 	private Intent pingIntent;
 	private PendingIntent pendingPingIntent = null;
 	private WakeLock wakeLock;
 	private PowerManager pm;
-
-	public PgpEngine getPgpEngine() {
-		if (pgpServiceConnection.isBound()) {
-			if (this.mPgpEngine == null) {
-				this.mPgpEngine = new PgpEngine(new OpenPgpApi(
-						getApplicationContext(),
-						pgpServiceConnection.getService()));
-			}
-			return mPgpEngine;
-		} else {
-			return null;
-		}
-
-	}
 
 	public FileBackend getFileBackend() {
 		return this.fileBackend;
@@ -583,9 +538,6 @@ public class XmppConnectionService extends Service {
 		
 		getContentResolver().registerContentObserver(
 				ContactsContract.Contacts.CONTENT_URI, true, contactObserver);
-		this.pgpServiceConnection = new OpenPgpServiceConnection(
-				getApplicationContext(), "org.sufficientlysecure.keychain");
-		this.pgpServiceConnection.bindToService();
 
 		this.pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
 		this.wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
@@ -708,22 +660,6 @@ public class XmppConnectionService extends Service {
 					}
 					saveInDb = true;
 					addToConversation = true;
-				} else if (message.getEncryption() == Message.ENCRYPTION_PGP) {
-					message.getConversation().endOtrIfNeeded();
-					long keyId = message.getConversation().getContact()
-							.getPgpKeyId();
-					packet = new MessagePacket();
-					packet.setType(MessagePacket.TYPE_CHAT);
-					packet.setFrom(message.getConversation().getAccount()
-							.getFullJid());
-					packet.setTo(message.getCounterpart());
-					packet.setBody("This is an XEP-0027 encryted message");
-					packet.addChild("x", "jabber:x:encrypted").setContent(message.getEncryptedBody());
-					message.setStatus(Message.STATUS_SEND);
-					message.setEncryption(Message.ENCRYPTION_DECRYPTED);
-					saveInDb = true;
-					addToConversation = true;
-					send = true;
 				} else {
 					message.getConversation().endOtrIfNeeded();
 					// don't encrypt
@@ -1293,29 +1229,6 @@ public class XmppConnectionService extends Service {
 		packet.setAttribute("from", contact.getAccount().getJid());
 		Log.d(LOGTAG, packet.toString());
 		contact.getAccount().getXmppConnection().sendPresencePacket(packet);
-	}
-
-	public void sendPgpPresence(Account account, String signature) {
-		PresencePacket packet = new PresencePacket();
-		packet.setAttribute("from", account.getFullJid());
-		Element status = new Element("status");
-		status.setContent("online");
-		packet.addChild(status);
-		Element x = new Element("x");
-		x.setAttribute("xmlns", "jabber:x:signed");
-		x.setContent(signature);
-		packet.addChild(x);
-		account.getXmppConnection().sendPresencePacket(packet);
-	}
-
-	public void generatePgpAnnouncement(Account account)
-			throws PgpEngine.UserInputRequiredException {
-		if (account.getStatus() == Account.STATUS_ONLINE) {
-			String signature = getPgpEngine().generateSignature("online");
-			account.setKey("pgp_signature", signature);
-			databaseBackend.updateAccount(account);
-			sendPgpPresence(account, signature);
-		}
 	}
 
 	public void updateConversation(Conversation conversation) {

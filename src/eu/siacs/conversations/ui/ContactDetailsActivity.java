@@ -252,19 +252,6 @@ public class ContactDetailsActivity extends XmppActivity {
 			key.setText(otrFingerprint);
 			keys.addView(view);
 		}
-		Log.d("gultsch", "pgp key id " + contact.getPgpKeyId());
-		if (contact.getPgpKeyId() != 0) {
-			View view = (View) inflater.inflate(R.layout.contact_key, null);
-			TextView key = (TextView) view.findViewById(R.id.key);
-			TextView keyType = (TextView) view.findViewById(R.id.key_type);
-			keyType.setText("PGP Key ID");
-			BigInteger bi = new BigInteger("" + contact.getPgpKeyId());
-			StringBuilder builder = new StringBuilder(bi.toString(16)
-					.toUpperCase(Locale.US));
-			builder.insert(8, " ");
-			key.setText(builder.toString());
-			keys.addView(view);
-		}
 	}
 
 	@Override
