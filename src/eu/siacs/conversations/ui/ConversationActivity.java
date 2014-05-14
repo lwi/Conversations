@@ -367,8 +367,8 @@ public class ConversationActivity extends XmppActivity {
 			selectPresenceToAttachFile(attachmentChoice);
 		} else {
 			AlertDialog.Builder builder = new AlertDialog.Builder(this);
-			builder.setTitle(getString(R.string.otr_file_transfer));
-			builder.setMessage(getString(R.string.otr_file_transfer_msg));
+			builder.setTitle("Insecure file transfer");
+			builder.setMessage("Although this is an OTR session, file transfers will be in plain text");
 			builder.setNegativeButton(getString(R.string.cancel), null);
 			builder.setPositiveButton(getString(R.string.send_unencrypted), new OnClickListener() {
 				
