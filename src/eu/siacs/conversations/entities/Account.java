@@ -1,5 +1,12 @@
 package eu.siacs.conversations.entities;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
+import java.security.cert.X509Certificate;
 import java.security.interfaces.DSAPublicKey;
 
 import net.java.otr4j.crypto.OtrCryptoEngineImpl;
@@ -22,6 +29,7 @@ public class Account  extends AbstractEntity{
 	
 	public static final String USERNAME = "username";
 	public static final String SERVER = "server";
+	public static final String SERVER_CERT = "server_cert";
 	public static final String PASSWORD = "password";
 	public static final String OPTIONS = "options";
 	public static final String ROSTERVERSION = "rosterversion";
@@ -50,6 +58,7 @@ public class Account  extends AbstractEntity{
 	
 	protected String username;
 	protected String server;
+	protected byte[] server_cert;
 	protected String password;
 	protected int options = 0;
 	protected String rosterVersion;
@@ -70,12 +79,13 @@ public class Account  extends AbstractEntity{
 	}
 	
 	public Account(String username, String server, String password) {
-		this(java.util.UUID.randomUUID().toString(),username,server,password,0,null,"");
+		this(java.util.UUID.randomUUID().toString(),username,server,null,password,0,null,"");
 	}
-	public Account(String uuid, String username, String server,String password, int options, String rosterVersion, String keys) {
+	public Account(String uuid, String username, String server, byte[] server_cert, String password, int options, String rosterVersion, String keys) {
 		this.uuid = uuid;
 		this.username = username;
 		this.server = server;
+		this.server_cert = server_cert;
 		this.password = password;
 		this.options = options;
 		this.rosterVersion = rosterVersion;
@@ -154,20 +164,31 @@ public class Account  extends AbstractEntity{
 		return keys;
 	}
 	
-	public String getSSLFingerprint() {
-		if (keys.has("ssl_cert")) {
-			try {
-				return keys.getString("ssl_cert");
-			} catch (JSONException e) {
-				return null;
-			}
-		} else {
-			return null;
+	public X509Certificate
+	getTrustedCertificate ()
+	{	X509Certificate cert = null;
+		if (server_cert != null) try
+		{	final ByteArrayInputStream bis = new ByteArrayInputStream (server_cert);
+			final ObjectInput in = new ObjectInputStream (bis);
+			cert = (X509Certificate) in.readObject ();
+			bis.close ();
 		}
+		catch (Exception e) {}
+		return cert;
 	}
-	
-	public void setSSLCertFingerprint(String fingerprint) {
-		this.setKey("ssl_cert", fingerprint);
+
+	public void
+	setTrustedCertificate (final X509Certificate cert)
+	{	try
+		{	final ByteArrayOutputStream bos = new ByteArrayOutputStream ();
+			final ObjectOutput out = new ObjectOutputStream (bos);
+			out.writeObject (cert);
+			server_cert = bos.toByteArray();
+			bos.close();
+		}
+		catch (Exception e)
+		{	e.printStackTrace ();
+		}
 	}
 	
 	public boolean setKey(String keyName, String keyValue) {
@@ -185,6 +206,7 @@ public class Account  extends AbstractEntity{
 		values.put(UUID,uuid);
 		values.put(USERNAME, username);
 		values.put(SERVER, server);
+		values.put(SERVER_CERT, server_cert);
 		values.put(PASSWORD, password);
 		values.put(OPTIONS,options);
 		values.put(KEYS,this.keys.toString());
@@ -196,6 +218,7 @@ public class Account  extends AbstractEntity{
 		return new Account(cursor.getString(cursor.getColumnIndex(UUID)),
 				cursor.getString(cursor.getColumnIndex(USERNAME)),
 				cursor.getString(cursor.getColumnIndex(SERVER)),
+				cursor.getBlob(cursor.getColumnIndex(SERVER_CERT)),
 				cursor.getString(cursor.getColumnIndex(PASSWORD)),
 				cursor.getInt(cursor.getColumnIndex(OPTIONS)),
 				cursor.getString(cursor.getColumnIndex(ROSTERVERSION)),

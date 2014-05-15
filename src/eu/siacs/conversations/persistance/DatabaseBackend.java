@@ -23,7 +23,7 @@ public class DatabaseBackend extends SQLiteOpenHelper {
 	private static DatabaseBackend instance = null;
 
 	private static final String DATABASE_NAME = "history";
-	private static final int DATABASE_VERSION = 3;
+	private static final int DATABASE_VERSION = 4;
 
 	public DatabaseBackend(Context context) {
 		super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -34,7 +34,8 @@ public class DatabaseBackend extends SQLiteOpenHelper {
 		db.execSQL("PRAGMA foreign_keys=ON;");
 		db.execSQL("create table " + Account.TABLENAME + "(" + Account.UUID
 				+ " TEXT PRIMARY KEY," + Account.USERNAME + " TEXT,"
-				+ Account.SERVER + " TEXT," + Account.PASSWORD + " TEXT,"
+				+ Account.SERVER + " TEXT," + Account.SERVER_CERT + " BLOB,"
+				+ Account.PASSWORD + " TEXT,"
 				+ Account.ROSTERVERSION + " TEXT," + Account.OPTIONS
 				+ " NUMBER, "+Account.KEYS+" TEXT)");
 		db.execSQL("create table " + Conversation.TABLENAME + " ("
@@ -76,6 +77,9 @@ public class DatabaseBackend extends SQLiteOpenHelper {
 			//add field type to message
 			db.execSQL("ALTER TABLE "+Message.TABLENAME+" ADD COLUMN "+Message.TYPE+" NUMBER");;
 		}
+		// add new field 'server_cert' holding the trusted binary server certificate
+		if (oldVersion < 4 && newVersion >= 4)
+			db.execSQL("ALTER TABLE "+Account.TABLENAME+" ADD COLUMN "+Account.SERVER_CERT+" BLOB");
 	}
 
 	public static synchronized DatabaseBackend getInstance(Context context) {
@@ -166,7 +170,7 @@ public class DatabaseBackend extends SQLiteOpenHelper {
 		List<Account> list = new ArrayList<Account>();
 		SQLiteDatabase db = this.getReadableDatabase();
 		Cursor cursor = db.query(Account.TABLENAME, null, null, null, null,
-				null, null);
+				null, null, null);
 		Log.d("gultsch", "found " + cursor.getCount() + " accounts");
 		while (cursor.moveToNext()) {
 			list.add(Account.fromCursor(cursor));

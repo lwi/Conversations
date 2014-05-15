@@ -1,5 +1,6 @@
 package eu.siacs.conversations.services;
 
+import java.security.cert.X509Certificate;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
@@ -660,11 +661,11 @@ public class XmppConnectionService extends Service {
 				.setOnTLSExceptionReceivedListener(new OnTLSExceptionReceived() {
 
 					@Override
-					public void onTLSExceptionReceived(String fingerprint,
+					public void onTLSExceptionReceived(final X509Certificate[] chain,
 							Account account) {
 						Log.d(LOGTAG, "tls exception arrived in service");
 						if (tlsException != null) {
-							tlsException.onTLSExceptionReceived(fingerprint,
+							tlsException.onTLSExceptionReceived(chain,
 									account);
 						}
 					}

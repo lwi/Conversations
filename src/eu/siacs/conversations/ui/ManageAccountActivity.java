@@ -2,6 +2,7 @@ package eu.siacs.conversations.ui;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.security.cert.X509Certificate;
 
 import eu.siacs.conversations.R;
 import eu.siacs.conversations.entities.Account;
@@ -18,6 +19,7 @@ import android.content.Intent;
 import android.content.IntentSender.SendIntentException;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.view.ActionMode;
 import android.view.LayoutInflater;
@@ -30,7 +32,9 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.AdapterView.OnItemLongClickListener;
 import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.ListView;
+import android.widget.RadioButton;
 import android.widget.TextView;
 
 public class ManageAccountActivity extends XmppActivity {
@@ -60,11 +64,76 @@ public class ManageAccountActivity extends XmppActivity {
 			});
 		}
 	};
-	
+
+/*
+	private static class ViewHolder
+	{	TextView mSubjectTextView;
+		RadioButton mRadioButton;
+	}
+*/
+
+	private class CertificateAdapter extends BaseAdapter
+	{	private final X509Certificate[] mCerts;
+
+		private CertificateAdapter (final X509Certificate[] certs)
+		{	mCerts = certs;
+		}
+
+		@Override
+		public int
+		getCount ()
+		{	return mCerts.length;
+		}
+
+		@Override
+		public X509Certificate
+		getItem (int adapterPosition)
+		{	return mCerts[adapterPosition];
+		}
+
+		@Override
+		public long
+		getItemId (int adapterPosition)
+		{	return adapterPosition;
+		}
+
+		// TODO: move layout to XML
+		// TODO: radio buttons please
+		// TODO: also display fingerprint
+		@Override
+		public View
+		getView (final int adapterPosition, View view, ViewGroup parent)
+		{	//ViewHolder holder;
+			if (view == null)
+			{ /*LinearLayout ll = new LinearLayout (ManageAccountActivity.this);
+				holder = new ViewHolder ();
+				holder.mRadioButton = new RadioButton (ManageAccountActivity.this);
+				ll.addView (holder.mRadioButton);
+				ll.addView (holder.mSubjectTextView); */
+				view = (View) new TextView (ManageAccountActivity.this);
+				/*holder.mSubjectTextView = (TextView) view;
+				view.setTag (holder);*/
+			}
+			//else holder = (ViewHolder) view.getTag ();
+
+			final String subjectName = mCerts[adapterPosition].getSubjectDN ().getName ();
+			//holder.mSubjectTextView.setText (subjectName);
+			((TextView) view).setText (subjectName);
+
+/*
+			final ListView lv = (ListView) parent;
+			final int listViewCheckedItemPosition = lv.getCheckedItemPosition ();
+			final int adapterCheckedItemPosition = listViewCheckedItemPosition - 1;
+			holder.mRadioButton.setChecked(adapterPosition == adapterCheckedItemPosition);
+*/
+			return view;
+		}
+  }
+
 	protected OnTLSExceptionReceived tlsExceptionReceived = new OnTLSExceptionReceived() {
 		
 		@Override
-		public void onTLSExceptionReceived(final String fingerprint, final Account account) {
+		public void onTLSExceptionReceived(final X509Certificate[] chain, final Account account) {
 			activity.runOnUiThread(new Runnable() {
 				
 				@Override
@@ -72,28 +141,33 @@ public class ManageAccountActivity extends XmppActivity {
 					AlertDialog.Builder builder = new AlertDialog.Builder(activity);
 					builder.setTitle("Untrusted Certificate");
 					builder.setIconAttribute(android.R.attr.alertDialogIcon);
-					View view = (View) getLayoutInflater().inflate(R.layout.cert_warning, null);
-					TextView sha = (TextView) view.findViewById(R.id.sha);
-					TextView hint = (TextView) view.findViewById(R.id.hint);
-					StringBuilder humanReadableSha = new StringBuilder();
-					humanReadableSha.append(fingerprint);
-					for(int i = 2; i < 59; i += 3) {
-						if ((i==14)||(i==29)||(i==44)) {
-							humanReadableSha.insert(i, "\n");
-						} else {
-							humanReadableSha.insert(i, ":");
+					final ListView lv = new ListView (activity);
+					lv.setChoiceMode (android.widget.AbsListView.CHOICE_MODE_SINGLE);
+					final TextView hint = new TextView (activity);
+					if (account.getTrustedCertificate () != null)
+						hint.setText ("Your trusted certificate is not part of the chain the server provided");
+					else
+						hint.setText ("Please select the certificate of the chain which you trust");
+					lv.addHeaderView (hint);
+					final CertificateAdapter adapter = new CertificateAdapter (chain);
+					lv.setAdapter (adapter);
+					lv.setOnItemClickListener (new AdapterView.OnItemClickListener ()
+					{	public void
+						onItemClick (AdapterView<?> parent, View view, int position, long id)
+						{ lv.setItemChecked (position, true);
 						}
-						
-					}
-					hint.setText(getString(R.string.untrusted_cert_hint,account.getServer()));
-					sha.setText(humanReadableSha.toString());
-					builder.setView(view);
-					builder.setNegativeButton("Don't connect", null);
-					builder.setPositiveButton("Trust certificate", new OnClickListener() {
+					});
+					builder.setView (lv);
+
+					builder.setNegativeButton("Abort", null);
+					builder.setPositiveButton("Trust selected certificate", new OnClickListener() {
 						
 						@Override
 						public void onClick(DialogInterface dialog, int which) {
-							account.setSSLCertFingerprint(fingerprint);
+							final int pos = lv.getCheckedItemPosition ();
+							if (pos == android.widget.AdapterView.INVALID_POSITION) return;
+							Log.d(LOGTAG, "adding cert to trust store ...");
+							account.setTrustedCertificate (adapter.getItem (pos - 1));
 							activity.xmppConnectionService.updateAccount(account);
 						}
 					});
@@ -228,6 +302,8 @@ public class ManageAccountActivity extends XmppActivity {
 					        	menu.findItem(R.id.mgmt_account_disable).setVisible(true);
 					        	menu.findItem(R.id.mgmt_account_enable).setVisible(false);
 					        }
+								menu.findItem (R.id.mgmt_tls_cert).setVisible
+									(selectedAccountForActionMode.getTrustedCertificate() != null);
 							return true;
 						}
 						
@@ -287,6 +363,26 @@ public class ManageAccountActivity extends XmppActivity {
 								builder.setView(view);
 								builder.setPositiveButton("Done", null);
 								builder.create().show();
+							} else if (item.getItemId() == R.id.mgmt_tls_cert) {
+								final AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+								builder.setTitle("Trusted TLS certificate");
+								final TextView tv = new TextView (activity);
+								final X509Certificate cert = selectedAccountForActionMode.getTrustedCertificate ();
+								tv.setMovementMethod(new ScrollingMovementMethod());
+								tv.setLayoutParams(new ViewGroup.LayoutParams(
+								 ViewGroup.LayoutParams.FILL_PARENT,
+								 ViewGroup.LayoutParams.FILL_PARENT));
+								tv.setText (cert.toString ());
+								builder.setView (tv);
+								builder.setPositiveButton ("Still trust", null);
+								builder.setNegativeButton ("Reject trust", new OnClickListener () {
+									@Override
+									public void
+									onClick (final DialogInterface dialog, final int which)
+									{	selectedAccountForActionMode.setTrustedCertificate (null);
+									}
+								});
+								builder.create ().show ();
 							} else if (item.getItemId() == R.id.mgmt_account_info) {
 								AlertDialog.Builder builder = new AlertDialog.Builder(activity);
 								builder.setTitle(getString(R.string.account_info));

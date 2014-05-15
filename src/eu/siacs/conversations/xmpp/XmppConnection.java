@@ -402,12 +402,14 @@ public class XmppConnection implements Runnable {
 			SSLContext sc = SSLContext.getInstance("TLS");
 			TrustManagerFactory tmf = TrustManagerFactory
 					.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-			// Initialise the TMF as you normally would, for example:
-			// tmf.in
+			KeyStore trust;
 			try {
-				tmf.init((KeyStore) null);
-			} catch (KeyStoreException e1) {
-				// TODO Auto-generated catch block
+				trust = KeyStore.getInstance ("BKS");
+				trust.load (null, null);
+				final X509Certificate cert = account.getTrustedCertificate ();
+				if (cert != null) trust.setCertificateEntry ("0", cert);
+				tmf.init(trust);
+			} catch (Exception e1) {
 				e1.printStackTrace();
 			}
 
@@ -429,22 +431,11 @@ public class XmppConnection implements Runnable {
 						origTrustmanager.checkServerTrusted(chain, authType);
 					} catch (CertificateException e) {
 						if (e.getCause() instanceof CertPathValidatorException) {
-							String sha;
-							try {
-								MessageDigest sha1 = MessageDigest.getInstance("SHA1");
-								sha1.update(chain[0].getEncoded());
-								sha = CryptoHelper.bytesToHex(sha1.digest());
-								if (!sha.equals(account.getSSLFingerprint())) {
-									changeStatus(Account.STATUS_TLS_ERROR);
-									if (tlsListener!=null) {
-										tlsListener.onTLSExceptionReceived(sha,account);
-									}
-									throw new CertificateException();
-								}
-							} catch (NoSuchAlgorithmException e1) {
-								// TODO Auto-generated catch block
-								e1.printStackTrace();
+							changeStatus (Account.STATUS_TLS_ERROR);
+							if (tlsListener!=null) {
+								tlsListener.onTLSExceptionReceived(chain,account);
 							}
+							throw new CertificateException();
 						} else {
 							throw new CertificateException();
 						}
